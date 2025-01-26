@@ -25,7 +25,7 @@ pub struct Range<T> where T: RangeItem
     step: Option<T>,
 }
 
-impl<T> Range<T> where T: Copy {
+impl<T> Range<T> where T: Copy + RangeItem {
     /// Create an upper and lower inclusive [`Range`]
     pub fn new(min: T, max: T, step: Option<T>) -> Self {
         Self {
@@ -54,13 +54,17 @@ impl<T> Range<T> where T: Copy {
     }
 
     pub fn set_minimum(&mut self, minimum: Option<T>) {
+        if let Some(minimum) = minimum {
         self.minimum = minimum;
+        }
     }
     pub fn set_lower_inclusive(&mut self, lower_inclusive: bool) {
         self.lower_inclusive = lower_inclusive;
     }
     pub fn set_maximum(&mut self, maximum: Option<T>) {
+        if let Some(maximum) = maximum {
         self.maximum = maximum;
+        }
     }
     pub fn set_upper_inclusive(&mut self, upper_inclusive: bool) {
         self.upper_inclusive = upper_inclusive;
@@ -109,7 +113,7 @@ where
 
         if let Some(step) = self.step {
             let step_chk_value = *value - self.minimum;
-            return step_chk_value % step == 0;
+            return step_chk_value % step == T::ZERO;
         }
 
         return true
@@ -118,7 +122,7 @@ where
 
 impl<T> Default for Range<T>
 where
-    T: Default,
+    T: Default + RangeItem,
 {
     fn default() -> Self {
         Range {
@@ -133,7 +137,7 @@ where
 
 impl<T> Display for Range<T>
 where
-    T: Debug,
+    T: Debug + RangeItem,
 {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let lower_inclusive_char = bool_to_inclusive_char(self.lower_inclusive, false);

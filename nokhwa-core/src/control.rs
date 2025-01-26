@@ -54,13 +54,14 @@ impl Display for ControlId {
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Controls {
     controls: HashMap<ControlId, ControlBody>,
-    values: HashMap<ControlId, ControlId>,
+    values: HashMap<ControlId, ControlValue>,
 }
 
 impl Controls {
     pub fn new(device_controls: HashMap<ControlId, ControlBody>) -> Self {
         Self {
             controls: device_controls,
+            values: HashMap::new(),
         }
     }
 
@@ -74,15 +75,18 @@ impl Controls {
 
     pub fn set_control_value(&mut self, control_id: &ControlId, value: ControlValue) -> NokhwaResult<()> {
         // see if it exists
-        if let Some(control) = self.controls.get_mut(control_id) {
+        if self.controls.contains_key(control_id) {
             // FIXME: Remove this clone one day!
-            control.set_value(value.clone())?;
+            self.values.insert(*control_id, value.clone());
+
+            Ok(())
+        } else {
+            Err(NokhwaError::SetPropertyError {
+                property: control_id.to_string(),
+                value: value.to_string(),
+                error: "Not Found/Not Supported".to_string(),
+            })
         }
-        Err(NokhwaError::SetPropertyError {
-            property: control_id.to_string(),
-            value: value.to_string(),
-            error: "Not Found/Not Supported".to_string(),
-        })
     }
 }
 
@@ -143,11 +147,11 @@ pub enum ControlValueDescriptor {
     Null,
     Integer(Range<i64>),
     BitMask,
-    Float(Range<f64>),
+    Float(Range<OrderedFloat<f64>>),
     String,
     Boolean,
     // Array of any values of singular type
-    Array(ControlValueDescriptor),
+    Array(ControlValue),
     // Menu(Enum) of valid choices
     // The keys are valid choices,
     // the values represent what the choice is (usually a string or int).
@@ -195,14 +199,14 @@ impl ControlValueDescriptor {
                     return true
                 }
             }
-            ControlValueDescriptor::Array(arr) => {
+            ControlValueDescriptor::Array(_arr) => {
                 if let &ControlValue::Array(_) = value {
-                    return arr.is_valid_value(value)
+                    return true
                 }
             }
             ControlValueDescriptor::Binary(size_limits) => {
                 if let ControlValue::Binary(bin) = value {
-                    return size_limits.validate(bin.len() as u64)
+                    return size_limits.validate(&(bin.len() as u64))
                 }
             }
             ControlValueDescriptor::Menu(choices) => {
@@ -219,114 +223,116 @@ impl ControlValueDescriptor {
         false
     }
 }
-//
-// #[derive(Clone, Debug, PartialEq)]
-// pub enum ControlValuePrimitiveDescriptor {
-//     Null,
-//     Integer(Range<i64>),
-//     BitMask,
-//     Float(Range<f64>),
-//     String,
-//     Binary,
-//     Boolean,
-// }
-//
-// impl ControlValuePrimitiveDescriptor {
-//     pub fn is_valid_primitive_value(&self, other: &ControlValuePrimitive) -> bool {
-//         match self {
-//             ControlValuePrimitiveDescriptor::Null => {
-//                 if let ControlValuePrimitive::Null = other {
-//                     return true
-//                 }
-//             }
-//             ControlValuePrimitiveDescriptor::Integer(i) => {
-//                 if let ControlValuePrimitive::Integer(v) = other {
-//                     return i.validate(v)
-//                 }
-//             }
-//             ControlValuePrimitiveDescriptor::BitMask => {
-//                 if let ControlValuePrimitive::BitMask(_) = other {
-//                     return true
-//                 }
-//             }
-//             ControlValuePrimitiveDescriptor::Float(f) => {
-//                 if let ControlValuePrimitive::Float(v) = other {
-//                     return f.validate(v)
-//                 }
-//             }
-//             ControlValuePrimitiveDescriptor::String => {
-//                 if let ControlValuePrimitive::String(_) = other {
-//                     return true
-//                 }
-//             }
-//             ControlValuePrimitiveDescriptor::Boolean => {
-//                 if let ControlValuePrimitive::Boolean(_) = other {
-//                     return true
-//                 }
-//             }
-//         }
-//         false
-//     }
-//
-//     pub fn is_valid_value(&self, other: &ControlValue) -> bool {
-//         match self {
-//             ControlValuePrimitiveDescriptor::Null => {
-//                 if let ControlValue::Null = other {
-//                     return true
-//                 }
-//             }
-//             ControlValuePrimitiveDescriptor::Integer(i) => {
-//                 if let ControlValue::Integer(v) = other {
-//                     return i.validate(v)
-//                 }
-//             }
-//             ControlValuePrimitiveDescriptor::BitMask => {
-//                 if let ControlValue::BitMask(_) = other {
-//                     return true
-//                 }
-//             }
-//             ControlValuePrimitiveDescriptor::Float(f) => {
-//                 if let ControlValue::Float(v) = other {
-//                     return f.validate(v)
-//                 }
-//             }
-//             ControlValuePrimitiveDescriptor::String => {
-//                 if let ControlValue::String(_) = other {
-//                     return true
-//                 }
-//             }
-//             ControlValuePrimitiveDescriptor::Boolean => {
-//                 if let ControlValue::Boolean(_) = other {
-//                     return true
-//                 }
-//             }
-//         }
-//         false
-//     }
-// }
-//
-// #[derive(Clone, Debug, Hash, Ord, PartialOrd, Eq, PartialEq)]
-// pub enum ControlValuePrimitive {
-//     Null,
-//     Integer(i64),
-//     BitMask(i64),
-//     Float(OrderedFloat<f64>),
-//     String(String),
-//     Boolean(bool),
-// }
-//
-// impl From<ControlValuePrimitive> for ControlValue {
-//     fn from(value: ControlValuePrimitive) -> Self {
-//         match value {
-//             ControlValuePrimitive::Null => ControlValue::Null,
-//             ControlValuePrimitive::Integer(i) => ControlValue::Integer(i),
-//             ControlValuePrimitive::BitMask(b) => ControlValue::BitMask(b),
-//             ControlValuePrimitive::Float(f) => ControlValue::Float(f),
-//             ControlValuePrimitive::String(s) => ControlValue::String(s),
-//             ControlValuePrimitive::Boolean(b) => ControlValue::Boolean(b),
-//         }
-//     }
-// }
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum ControlValuePrimitiveDescriptor {
+    Null,
+    Integer(Range<i64>),
+    BitMask,
+    Float(Range<OrderedFloat<f64>>),
+    String,
+    Binary,
+    Boolean,
+}
+
+impl ControlValuePrimitiveDescriptor {
+    pub fn is_valid_primitive_value(&self, other: &ControlValuePrimitive) -> bool {
+        match self {
+            ControlValuePrimitiveDescriptor::Null => {
+                if let ControlValuePrimitive::Null = other {
+                    return true
+                }
+            }
+            ControlValuePrimitiveDescriptor::Integer(i) => {
+                if let ControlValuePrimitive::Integer(v) = other {
+                    return i.validate(v)
+                }
+            }
+            ControlValuePrimitiveDescriptor::BitMask => {
+                if let ControlValuePrimitive::BitMask(_) = other {
+                    return true
+                }
+            }
+            ControlValuePrimitiveDescriptor::Float(f) => {
+                if let ControlValuePrimitive::Float(v) = other {
+                    return f.validate(v)
+                }
+            }
+            ControlValuePrimitiveDescriptor::String => {
+                if let ControlValuePrimitive::String(_) = other {
+                    return true
+                }
+            }
+            ControlValuePrimitiveDescriptor::Boolean => {
+                if let ControlValuePrimitive::Boolean(_) = other {
+                    return true
+                }
+            }
+            _ => {}
+        }
+        false
+    }
+
+    pub fn is_valid_value(&self, other: &ControlValue) -> bool {
+        match self {
+            ControlValuePrimitiveDescriptor::Null => {
+                if let ControlValue::Null = other {
+                    return true
+                }
+            }
+            ControlValuePrimitiveDescriptor::Integer(i) => {
+                if let ControlValue::Integer(v) = other {
+                    return i.validate(v)
+                }
+            }
+            ControlValuePrimitiveDescriptor::BitMask => {
+                if let ControlValue::BitMask(_) = other {
+                    return true
+                }
+            }
+            ControlValuePrimitiveDescriptor::Float(f) => {
+                if let ControlValue::Float(v) = other {
+                    return f.validate(v)
+                }
+            }
+            ControlValuePrimitiveDescriptor::String => {
+                if let ControlValue::String(_) = other {
+                    return true
+                }
+            }
+            ControlValuePrimitiveDescriptor::Boolean => {
+                if let ControlValue::Boolean(_) = other {
+                    return true
+                }
+            }
+            _ => {}
+        }
+        false
+    }
+}
+
+#[derive(Clone, Debug, Hash, Ord, PartialOrd, Eq, PartialEq)]
+pub enum ControlValuePrimitive {
+    Null,
+    Integer(i64),
+    BitMask(i64),
+    Float(OrderedFloat<f64>),
+    String(String),
+    Boolean(bool),
+}
+
+impl From<ControlValuePrimitive> for ControlValue {
+    fn from(value: ControlValuePrimitive) -> Self {
+        match value {
+            ControlValuePrimitive::Null => ControlValue::Null,
+            ControlValuePrimitive::Integer(i) => ControlValue::Integer(i),
+            ControlValuePrimitive::BitMask(b) => ControlValue::BitMask(b),
+            ControlValuePrimitive::Float(f) => ControlValue::Float(f),
+            ControlValuePrimitive::String(s) => ControlValue::String(s),
+            ControlValuePrimitive::Boolean(b) => ControlValue::Boolean(b),
+        }
+    }
+}
 
 #[derive(Clone, Debug, Hash, Eq, PartialEq, PartialOrd)]
 pub enum ControlValue {

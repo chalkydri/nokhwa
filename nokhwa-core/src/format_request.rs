@@ -60,8 +60,10 @@ impl FormatRequest {
                 frame_rate,
                 ..
             } => {
-                let resolution_point = resolution.map(|x| x.preferred());
-                let frame_rate_point = frame_rate.map(|x| x.preferred());
+                //let resolution_point = resolution.map(|x| x.preferred());
+                //let frame_rate_point = frame_rate.map(|x| x.preferred());
+                let resolution_point = resolution.map(|x| x.maximum());
+                let frame_rate_point = frame_rate.map(|x| x.maximum());
                 // lets calcuate distance in 3 dimensions (add both resolution and frame_rate together)
 
                 camera_formats.sort_by(|a, b| {

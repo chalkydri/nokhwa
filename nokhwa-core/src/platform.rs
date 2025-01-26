@@ -1,5 +1,7 @@
 use std::fmt::{Display, Formatter};
-use crate::camera::{AsyncCamera, Camera};
+use crate::camera::Camera;
+#[cfg(feature = "async")]
+use crate::camera::AsyncCamera;
 use crate::error::NokhwaResult;
 use crate::types::{CameraIndex, CameraInformation};
 
@@ -23,7 +25,6 @@ pub trait PlatformTrait {
     const PLATFORM: Backends;
     type Camera: Camera;
 
-
     fn block_on_permission(&mut self) -> NokhwaResult<()>;
 
     fn check_permission_given(&mut self) -> bool;
@@ -32,7 +33,7 @@ pub trait PlatformTrait {
 
     fn open(&mut self, index: &CameraIndex) -> NokhwaResult<Self::Camera>;
 
-    fn open_dynamic(&mut self, index: &CameraIndex) -> NokhwaResult<Box<dyn Camera>> {
+    fn open_dynamic(&mut self, index: &CameraIndex) -> NokhwaResult<Box<impl Camera>> {
         self.open(index).map(|cam| Box::new(cam))
     }
 }
@@ -50,8 +51,7 @@ pub trait AsyncPlatformTrait {
 
     async fn open_async (&mut self, index: &CameraIndex) -> NokhwaResult<Self::AsyncCamera>;
 
-
-    async fn open_dynamic_async(&mut self, index: &CameraIndex) -> NokhwaResult<Box<dyn Camera>> {
+    async fn open_dynamic_async(&mut self, index: &CameraIndex) -> NokhwaResult<Box<impl Camera>> {
         self.open_async(index).await.map(|cam| Box::new(cam))
     }
 }
